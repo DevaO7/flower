@@ -10,8 +10,87 @@ from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
+from fjord.common import create_lda_partitions
+
 
 CIFAR_NORMALIZATION = ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+
+# def cifar10(num_classes, input_shape):
+#     """Prepare the CIFAR-10.
+
+#     This method considers CIFAR-10 for creating both train and test sets. The sets are
+#     already normalized.
+#     """
+#     transform_train = transforms.Compose(
+#         [
+#             transforms.RandomCrop(32, padding=4),
+#             transforms.RandomHorizontalFlip(),
+#             transforms.ToTensor(),
+#             transforms.Normalize(*CIFAR_NORMALIZATION),
+#         ]
+#     )
+
+#     transform_test = transforms.Compose(
+#         [
+#             transforms.ToTensor(),
+#             transforms.Normalize(*CIFAR_NORMALIZATION),
+#         ]
+#     )
+    
+#     # print(f">>> [Dataset] Loading CIFAR-10. {num_classes} | {input_shape}.")
+#     # (x_train, y_train), (x_test, y_test) = keras.datasets.cifar10.load_data()
+#     # x_train = x_train.astype("float32") / 255
+#     # x_test = x_test.astype("float32") / 255
+#     # input_shape = x_train.shape[1:]
+#     # num_classes = len(np.unique(y_train))
+
+#     trainset = CIFAR10(root='./data',
+#                                         train=True,
+#                                         download=True,
+#                                         transform=transform_train)
+    
+#     testset = CIFAR10(root='./data',
+#                                        train=False,
+#                                        download=True,
+#                                        transform=transform_test)
+
+
+#     return trainset, testset
+
+
+# def fmnist(num_classes, input_shape):
+#     """Prepare the FMNIST.
+
+#     This method considers FMNIST for creating both train and test sets. The sets are
+#     already normalized.
+#     """
+#     print(f">>> [Dataset] Loading FMNIST. {num_classes} | {input_shape}.")
+#     (x_train, y_train), (x_test, y_test) = keras.datasets.fashion_mnist.load_data()
+#     x_train = x_train.astype("float32") / 255
+#     x_test = x_test.astype("float32") / 255
+#     input_shape = x_train.shape[1:]
+#     num_classes = len(np.unique(y_train))
+
+#     return x_train, y_train, x_test, y_test, input_shape, num_classes
+
+def partition(x_train, y_train, num_clients, concentration):
+    """Create non-iid partitions.
+
+    The partitions uses a LDA distribution based on concentration.
+    """
+    print(
+        f">>> [Dataset] {num_clients} clients, non-iid concentration {concentration}..."
+    )
+    dataset = [x_train, y_train]
+    partitions, _ = create_lda_partitions(
+        dataset,
+        num_partitions=num_clients,
+        # concentration=concentration * num_classes,
+        concentration=concentration,
+        accept_imbalanced= True,
+        seed=1234,
+    )
+    return partitions
 
 
 class FLCifar10Client(Dataset):
@@ -101,7 +180,12 @@ class FLCifar10(CIFAR10):
             target_transform=target_transform,
             download=download,
         )
-
+        """
+        What happens in here? 
+        self.parition is a shuffled indices in some sense
+        Currently hardwired to 100 clients
+        """
+        # TODO: Extend this to any number of clients
         # Uniform shuffle
         shuffle = np.arange(len(self.data))
         rng = np.random.default_rng(12345)
@@ -159,6 +243,11 @@ def load_data(
     fl_dataset = FLCifar10(
         root=path, train=True, download=True, transform=transform_train
     )
+
+    print(fl_dataset.partition.shape)
+    print(fl_dataset.num_clients)
+    
+    exit()
 
     trainset = FLCifar10Client(fl_dataset, client_id=cid)
     testset = CIFAR10(root=path, train=False, download=True, transform=transform_test)

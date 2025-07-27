@@ -8,18 +8,21 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 import flwr as fl
 import hydra
+from hydra.utils import instantiate
 import numpy as np
 import torch
 from flwr.client import Client, NumPyClient
 from omegaconf import OmegaConf, open_dict
 
 from .client import FJORD_CONFIG_TYPE, FjORDClient, get_agg_config
-from .dataset import load_data
+from .dataset import load_data, partition
 from .models import get_net
 from .server import get_eval_fn
 from .strategy import FjORDFedAVG
 from .utils.logger import Logger
 from .utils.utils import get_parameters
+from torch.utils.data import DataLoader, Dataset
+
 
 
 def get_fit_config_fn(
@@ -182,9 +185,36 @@ def main(args: Any) -> None:
         f"{torch.__version__} and Flower {fl.__version__}"
     )
 
+    # trainset, testset = instantiate(
+    #     args.dataset
+    # )
+
+    # x_train, y_train = trainset.data, np.array(trainset.targets)
+    # x_test, y_test = testset.data, np.array(testset.targets)
+
+    # partitions = partition(x_train, y_train, args.num_clients, args.noniid.concentration)
+
+    # # Convert to trainloader and testloader
+    # trainloader = DataLoader(
+    #     trainset, # What is the shape/size of this
+    #     batch_size=args.batch_size,
+    #     shuffle=True,
+    #     worker_init_fn=args.manual_seed,
+    #     generator=torch.Generator().manual_seed(args.manual_seed)
+    # )
+
+    # testloader = DataLoader(
+    #     testset, # What is the shape/size of this
+    #     batch_size=args.batch_size
+    # )
+
+
+    # Probably partition code needs to come here
+
     trainloader, testloader = load_data(
         path, cid=0, seed=args.manual_seed, train_bs=args.batch_size
     )
+
     NUM_CLIENTS = args.num_clients
     if args.client_tier_allocation == "uniform":
         cid_to_max_p = {cid: (cid // 20) * 0.2 + 0.2 for cid in range(100)}
@@ -195,6 +225,7 @@ def main(args: Any) -> None:
             "supported"
         )
 
+    # trainloader is passed only to get the input shape
     model = get_net(args.model, args.p_s, device=device)
     config = get_agg_config(model, trainloader, args.p_s)
     train_config = SimpleNamespace(

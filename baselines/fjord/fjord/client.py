@@ -68,6 +68,8 @@ def get_agg_config(
     device = next(net.parameters()).device
     images, _ = next(iter(trainloader))
     images = images.to(device)
+    print(images.shape)
+    exit()
     layers = net_to_state_dict_layers(net)
     # init min dims in networks
     config: FJORD_CONFIG_TYPE = {p: [{} for _ in layers] for p in p_s}
