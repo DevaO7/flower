@@ -68,8 +68,6 @@ def get_agg_config(
     device = next(net.parameters()).device
     images, _ = next(iter(trainloader))
     images = images.to(device)
-    print(images.shape)
-    exit()
     layers = net_to_state_dict_layers(net)
     # init min dims in networks
     config: FJORD_CONFIG_TYPE = {p: [{} for _ in layers] for p in p_s}
@@ -123,6 +121,8 @@ class FjORDClient(
         log_config: Dict[str, str],
         device: torch.device,
         seed: int,
+        num_clients: int = 100,
+        concentration: float = 0.1,
     ) -> None:
         """Initialise the client.
 
@@ -144,9 +144,8 @@ class FjORDClient(
         self.p_s = p_s
         self.net = get_net(model_name, p_s, device)
         self.trainloader, self.valloader = load_data(
-            data_path, int(cid), train_config.batch_size, seed
+            data_path, int(cid), train_config.batch_size, seed, num_clients=num_clients, concentration=concentration 
         )
-
         self.know_distill = know_distill
         self.max_p = max_p
         self.fjord_config = fjord_config

@@ -84,6 +84,8 @@ def get_client_fn(  # pylint: disable=too-many-arguments
             log_config=log_config,
             seed=args.manual_seed,
             device=device,
+            num_clients=args.num_clients,
+            concentration=args.noniid.concentration,
         )
 
     return client_fn
@@ -211,8 +213,16 @@ def main(args: Any) -> None:
 
     # Probably partition code needs to come here
 
+    full_trainset = CIFAR10(root='./data', train=True, download=True)
+
+    paritions = partition(full_trainset, 10, 0.1)
+
+
+    print("CIFAR10 dataset loaded and partitioned.")
+
+
     trainloader, testloader = load_data(
-        path, cid=0, seed=args.manual_seed, train_bs=args.batch_size
+        path, cid=0, seed=args.manual_seed, train_bs=args.batch_size, num_clients=args.num_clients, concentration=args.noniid.concentration
     )
 
     NUM_CLIENTS = args.num_clients
