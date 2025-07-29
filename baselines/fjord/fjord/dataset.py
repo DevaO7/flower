@@ -6,6 +6,7 @@ from fjord.common import create_lda_partitions
 import numpy as np
 from PIL import Image
 import torch
+import random
 
 CIFAR_NORMALIZATION = ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
 
@@ -50,7 +51,13 @@ class FLCifar10Client(Dataset):
 
 def load_data(partitions, cid, train_bs, eval_bs, path):
 
-    g = torch.Generator().manual_seed(1234 + cid)
+    def seed_worker(worker_id):  # pylint: disable=unused-argument
+        worker_seed = torch.initial_seed() % 2**32
+        np.random.seed(worker_seed)
+        random.seed(worker_seed)
+
+    g = torch.Generator()
+    g.manual_seed(1234 + cid)
 
 
     transform_train, transform_test = get_transforms()
@@ -62,6 +69,8 @@ def load_data(partitions, cid, train_bs, eval_bs, path):
         trainset,
         batch_size=train_bs,
         shuffle=True,
+        worker_init_fn=seed_worker,
+        generator=g,
     )
 
     testset = CIFAR10(root=path, train=False, download=True, transform=transform_test)

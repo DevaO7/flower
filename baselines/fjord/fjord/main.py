@@ -13,6 +13,7 @@ import numpy as np
 import torch
 from flwr.client import Client, NumPyClient
 from omegaconf import OmegaConf, open_dict
+from torchvision.datasets import CIFAR10
 
 from .client import FJORD_CONFIG_TYPE, FjORDClient, get_agg_config
 from .dataset import load_data, partition
@@ -53,6 +54,7 @@ def get_client_fn(  # pylint: disable=too-many-arguments
     config: FJORD_CONFIG_TYPE,
     train_config: SimpleNamespace,
     device: torch.device,
+    partitions,
 ) -> Callable[[str], Union[Client, NumPyClient]]:
     """Get client function that creates Flower client.
 
@@ -84,8 +86,7 @@ def get_client_fn(  # pylint: disable=too-many-arguments
             log_config=log_config,
             seed=args.manual_seed,
             device=device,
-            num_clients=args.num_clients,
-            concentration=args.noniid.concentration,
+            partitions=partitions,
         )
 
     return client_fn
@@ -215,19 +216,17 @@ def main(args: Any) -> None:
 
     full_trainset = CIFAR10(root='./data', train=True, download=True)
 
-    paritions = partition(full_trainset, 10, 0.1)
+    partitions = partition(full_trainset, args.num_clients, args.noniid.concentration)
 
 
     print("CIFAR10 dataset loaded and partitioned.")
 
 
-    trainloader, testloader = load_data(
-        path, cid=0, seed=args.manual_seed, train_bs=args.batch_size, num_clients=args.num_clients, concentration=args.noniid.concentration
-    )
+    trainloader, testloader = load_data(partitions, cid=0, train_bs=args.batch_size, eval_bs=args.batch_size, path=args.data_path)
 
     NUM_CLIENTS = args.num_clients
     if args.client_tier_allocation == "uniform":
-        cid_to_max_p = {cid: (cid // 20) * 0.2 + 0.2 for cid in range(100)}
+        cid_to_max_p = {cid: (cid // 20) * 0.2 + 0.2 for cid in range(args.num_clients)}
     else:
         raise ValueError(
             f"Client to tier allocation strategy "
@@ -287,7 +286,7 @@ def main(args: Any) -> None:
     # Start simulation
     fl.simulation.start_simulation(
         client_fn=get_client_fn(
-            args, model_path, cid_to_max_p, config, train_config, device
+            args, model_path, cid_to_max_p, config, train_config, device, partitions
         ),
         num_clients=NUM_CLIENTS,
         config=fl.server.ServerConfig(num_rounds=args.num_rounds),
